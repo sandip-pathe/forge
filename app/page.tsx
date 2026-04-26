@@ -189,6 +189,7 @@ export default function Home() {
     string | null
   >(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
 
   const pipeline = useBriefStore((state) => state.pipeline);
   const briefDraft = useBriefStore((state) => state.briefDraft);
@@ -310,6 +311,7 @@ export default function Home() {
     const demo = createRubikDemoBrief();
 
     setGlobalError(null);
+    setShareNotice(null);
     setViewMode("brief");
 
     store.resetBriefDraft();
@@ -353,7 +355,11 @@ export default function Home() {
         store.setBriefIdentity({ id: saveResult.id });
         window.history.replaceState({}, "", `/brief/${saveResult.id}`);
       }
-    } catch {}
+    } catch {
+      setShareNotice(
+        "Brief generated locally. Share link unavailable because KV is not configured.",
+      );
+    }
   };
 
   const runPipeline = async (input?: {
@@ -367,6 +373,7 @@ export default function Home() {
     const activeFounderContext = input?.founderContext ?? founderContext;
 
     setGlobalError(null);
+    setShareNotice(null);
     setNicheValidationError(null);
     setViewMode("pipeline");
 
@@ -619,7 +626,11 @@ export default function Home() {
               useBriefStore.getState().setBriefIdentity({ id: saveResult.id });
               window.history.replaceState({}, "", `/brief/${saveResult.id}`);
             }
-          } catch {}
+          } catch {
+            setShareNotice(
+              "Brief generated locally. Share link unavailable because KV is not configured.",
+            );
+          }
         }
       }
     } catch (error) {
@@ -703,6 +714,8 @@ export default function Home() {
               pipeline={pipeline}
               pipelineSteps={pipelineSteps}
               sections={briefDraft.sections}
+              briefId={briefDraft.id}
+              shareNotice={shareNotice}
               onRetrySection={(section) => {
                 void retrySection(section);
               }}

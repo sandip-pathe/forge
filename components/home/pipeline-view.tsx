@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 
+import { BriefExportButton } from "@/components/brief/brief-export-button";
 import { BriefSectionsRenderer } from "@/components/brief/brief-sections";
+import { BriefShareBar } from "@/components/brief/brief-share-bar";
 import {
   briefSectionIds,
   type BriefSectionId,
@@ -19,6 +21,8 @@ type PipelineViewProps = {
   pipeline: PipelineState;
   pipelineSteps: readonly PipelineStepConfig[];
   sections: Partial<BriefSections>;
+  briefId?: string;
+  shareNotice?: string | null;
   onRetrySection: (section: BriefSectionId) => void;
 };
 
@@ -47,8 +51,12 @@ export function PipelineView({
   pipeline,
   pipelineSteps,
   sections,
+  briefId,
+  shareNotice,
   onRetrySection,
 }: PipelineViewProps) {
+  const hasRenderedBrief = Object.keys(sections).length > 0;
+
   return (
     <motion.section
       key="pipeline"
@@ -111,6 +119,12 @@ export function PipelineView({
       </motion.div>
 
       <div className="mt-8 space-y-4 pb-12">
+        {hasRenderedBrief ? (
+          <div className="print-hidden flex justify-end">
+            <BriefExportButton />
+          </div>
+        ) : null}
+
         <motion.div
           initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -128,6 +142,16 @@ export function PipelineView({
             onRetrySection={onRetrySection}
           />
         </motion.div>
+
+        {hasRenderedBrief && briefId ? (
+          <BriefShareBar briefId={briefId} />
+        ) : null}
+
+        {hasRenderedBrief && !briefId && shareNotice ? (
+          <div className="print-hidden rounded-lg border border-(--color-border-strong) bg-(--color-surface-2) px-4 py-3 text-sm text-(--color-text-secondary)">
+            {shareNotice}
+          </div>
+        ) : null}
       </div>
     </motion.section>
   );
