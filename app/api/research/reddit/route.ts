@@ -18,6 +18,17 @@ const requestSchema = z.object({
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function redditHeaders(): HeadersInit {
+  const userAgent =
+    process.env.REDDIT_USER_AGENT?.trim() ||
+    "web:niche-finder:v1.0 (by /u/niche_finder_app)";
+
+  return {
+    "User-Agent": userAgent,
+    Accept: "application/json",
+  };
+}
+
 function normalizeSubreddit(value?: string): string | undefined {
   if (!value) return undefined;
   const normalized = value
@@ -56,6 +67,10 @@ type RedditTopResponse = {
   };
 };
 
+function isAccessDeniedStatus(status: number): boolean {
+  return status === 401 || status === 403 || status === 429;
+}
+
 export async function POST(request: Request): Promise<Response> {
   const rateLimit = await enforceRateLimit(request, {
     route: "api/research/reddit",
@@ -83,11 +98,19 @@ export async function POST(request: Request): Promise<Response> {
       const searchUrl = `https://www.reddit.com/search.json?q=${encodeURIComponent(niche)}&type=sr&limit=3`;
       const searchRes = await fetchWithTimeout(
         searchUrl,
-        { headers: { "User-Agent": "niche-finder/1.0" } },
+        { headers: redditHeaders() },
         10000,
       );
 
       if (!searchRes.ok) {
+        if (isAccessDeniedStatus(searchRes.status)) {
+          return jsonResponse({
+            status: "not_found",
+            fallbackNote:
+              "Reddit blocked server-side access for this request. Continuing with App Store and Web signals.",
+          });
+        }
+
         return jsonFailure(
           "Reddit search failed",
           502,
@@ -110,16 +133,8 @@ export async function POST(request: Request): Promise<Response> {
     const topUrl = `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/top.json?t=year&limit=25`;
 
     const [aboutRes, topRes] = await Promise.all([
-      fetchWithTimeout(
-        aboutUrl,
-        { headers: { "User-Agent": "niche-finder/1.0" } },
-        10000,
-      ),
-      fetchWithTimeout(
-        topUrl,
-        { headers: { "User-Agent": "niche-finder/1.0" } },
-        10000,
-      ),
+      fetchWithTimeout(aboutUrl, { headers: redditHeaders() }, 10000),
+      fetchWithTimeout(topUrl, { headers: redditHeaders() }, 10000),
     ]);
 
     if ((aboutRes.status === 404 || topRes.status === 404) && subredditHint) {
@@ -130,6 +145,24 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (!aboutRes.ok || !topRes.ok) {
+      if (
+        isAccessDeniedStatus(aboutRes.status) ||
+        isAccessDeniedStatus(topRes.status)
+      ) {
+        return jsonResponse(
+          {
+            status: "partial",
+            fallbackNote:
+              "Reddit blocked detailed subreddit endpoints for this deployment environment.",
+            subredditName: subreddit,
+            subscriberCount: 0,
+            topPosts: [],
+            topFlairs: [],
+          },
+          200,
+        );
+      }
+
       return jsonResponse(
         {
           status: "partial",
